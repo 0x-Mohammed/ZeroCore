@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZeroCore Agent — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  /* ── Variables ─────────────────────────────────────────── */
+  :root {
+    --bg:        #080b10;
+    --surface:   #0d1117;
+    --surface2:  #161b22;
+    --border:    #21262d;
+    --accent:    #00ff9d;
+    --accent2:   #00c8ff;
+    --danger:    #ff4d6d;
+    --warn:      #ffb347;
+    --text:      #e6edf3;
+    --muted:     #6e7681;
+    --font-mono: 'Space Mono', monospace;
+    --font-ui:   'Syne', sans-serif;
+  }
+
+  /* ── Reset ──────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise texture overlay ─────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, #ffffff04 39px, #ffffff04 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, #ffffff04 39px, #ffffff04 40px);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ════════════════════════════════════════════════════════
+     LOGIN SCREEN
+  ════════════════════════════════════════════════════════ */
+  #login-screen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    background: var(--bg);
+  }
+
+  .login-card {
+    width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 48px 40px 40px;
+    position: relative;
+    animation: fadeUp .5s ease both;
+  }
+
+  .login-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .login-logo {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 36px;
+  }
+
+  .login-logo-icon {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--accent);
+    display: grid; place-items: center;
+    position: relative;
+  }
+
+  .login-logo-icon::after {
+    content: '';
+    width: 10px; height: 10px;
+    background: var(--accent);
+    display: block;
+    animation: pulse 2s infinite;
+  }
+
+  .login-logo-text {
+    font-family: var(--font-ui);
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: .08em;
+    color: var(--text);
+  }
+
+  .login-logo-text span { color: var(--accent); }
+
+  .login-subtitle {
+    font-family: var(--font-mono);
+    font-size: .68rem;
+    color: var(--muted);
+    letter-spacing: .12em;
+    margin-bottom: 32px;
+    text-transform: uppercase;
+  }
+
+  .field { margin-bottom: 20px; }
+
+  .field label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: .7rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .field input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+
+  .field input:focus { border-color: var(--accent); }
+
+  .login-btn {
+    width: 100%;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    font-family: var(--font-ui);
+    font-weight: 800;
+    font-size: .9rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity .2s, transform .1s;
+  }
+
+  .login-btn:hover   { opacity: .88; }
+  .login-btn:active  { transform: scale(.98); }
+
+  .login-error {
+    font-family: var(--font-mono);
+    font-size: .72rem;
+    color: var(--danger);
+    margin-top: 14px;
+    display: none;
+  }
+
+  .login-open-source {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: .66rem;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: .06em;
+  }
+
+  .login-open-source a {
+    color: var(--accent2);
+    text-decoration: none;
+  }
+
+  /* ════════════════════════════════════════════════════════
+     MAIN DASHBOARD
+  ════════════════════════════════════════════════════════ */
+  #dashboard { display: none; min-height: 100vh; position: relative; z-index: 1; }
+
+  /* ── Sidebar ─────────────────────────────────────────── */
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 50;
+  }
+
+  .sidebar-logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .sidebar-logo-box {
+    width: 28px; height: 28px;
+    border: 1.5px solid var(--accent);
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+
+  .sidebar-logo-box span {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    display: block;
+    animation: pulse 2s infinite;
+  }
+
+  .sidebar-logo-name {
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: .06em;
+  }
+
+  .sidebar-logo-name em {
+    color: var(--accent); font-style: normal;
+  }
+
+  .sidebar-section {
+    padding: 20px 12px 8px;
+    font-family: var(--font-mono);
+    font-size: .6rem;
+    color: var(--muted);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px;
+    margin: 2px 8px;
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--muted);
+    transition: all .15s;
+    border-left: 2px solid transparent;
+    letter-spacing: .02em;
+  }
+
+  .nav-item:hover  { color: var(--text); background: var(--surface2); }
+
+  .nav-item.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: #00ff9d0d;
+  }
+
+  .nav-item .icon { width: 16px; text-align: center; font-size: .9rem; }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .agent-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .agent-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    animation: pulse 2s infinite;
+  }
+
+  .agent-info { overflow: hidden; }
+
+  .agent-name {
+    font-family: var(--font-mono);
+    font-size: .7rem;
+    color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .agent-env {
+    font-family: var(--font-mono);
+    font-size: .6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ── Main content ────────────────────────────────────── */
+  .main {
+    margin-left: 220px;
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  /* ── Topbar ──────────────────────────────────────────── */
+  .topbar {
+    height: 56px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 28px;
+    gap: 16px;
+    position: sticky; top: 0; z-index: 40;
+  }
+
+  .topbar-title {
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: .04em;
+    flex: 1;
+  }
+
+  .topbar-pill {
+    font-family: var(--font-mono);
+    font-size: .65rem;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .topbar-pill.live {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .logout-btn {
+    font-family: var(--font-mono);
+    font-size: .68rem;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    cursor: pointer;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    transition: all .15s;
+  }
+
+  .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* ── Page ────────────────────────────────────────────── */
+  .page { display: none; padding: 28px; animation: fadeIn .25s ease; }
+  .page.active { display: block; }
+
+  /* ── Stat cards ──────────────────────────────────────── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .stat-card.green::after  { background: var(--accent); }
+  .stat-card.blue::after   { background: var(--accent2); }
+  .stat-card.red::after    { background: var(--danger); }
+  .stat-card.orange::after { background: var(--warn); }
+
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: .62rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .stat-card.green  .stat-value { color: var(--accent); }
+  .stat-card.blue   .stat-value { color: var(--accent2); }
+  .stat-card.red    .stat-value { color: var(--danger); }
+  .stat-card.orange .stat-value { color: var(--warn); }
+
+  .stat-sub {
+    font-family: var(--font-mono);
+    font-size: .63rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── Section header ──────────────────────────────────── */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: .72rem;
+    color: var(--muted);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .refresh-btn {
+    font-family: var(--font-mono);
+    font-size: .65rem;
+    color: var(--accent2);
+    background: none;
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    cursor: pointer;
+    letter-spacing: .06em;
+    transition: border-color .15s;
+  }
+
+  .refresh-btn:hover { border-color: var(--accent2); }
+
+  /* ── Table ───────────────────────────────────────────── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow-x: auto;
+    margin-bottom: 28px;
+  }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: .74rem;
+  }
+
+  thead { background: var(--surface2); }
+
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: .62rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    font-weight: 400;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* severity badges */
+  .badge {
+    display: inline-block;
+    font-size: .6rem;
+    padding: 2px 8px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    border: 1px solid;
+  }
+
+  .badge-critical { color: var(--danger);  border-color: var(--danger);  background: #ff4d6d18; }
+  .badge-high     { color: var(--warn);    border-color: var(--warn);    background: #ffb34718; }
+  .badge-medium   { color: var(--accent2); border-color: var(--accent2); background: #00c8ff18; }
+  .badge-low      { color: var(--muted);   border-color: var(--border);  background: transparent; }
+  .badge-success  { color: var(--accent);  border-color: var(--accent);  background: #00ff9d18; }
+  .badge-failed   { color: var(--danger);  border-color: var(--danger);  background: #ff4d6d18; }
+
+  /* ── Terminal log ─────────────────────────────────────── */
+  .terminal {
+    background: #020408;
+    border: 1px solid var(--border);
+    padding: 16px;
+    height: 260px;
+    overflow-y: auto;
+    font-family: var(--font-mono);
+    font-size: .72rem;
+    line-height: 1.7;
+  }
+
+  .log-line { display: flex; gap: 12px; }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-level-info     { color: var(--accent2); }
+  .log-level-warning  { color: var(--warn); }
+  .log-level-error    { color: var(--danger); }
+  .log-level-critical { color: var(--danger); font-weight: 700; }
+  .log-msg  { color: var(--text); }
+  .log-meta { color: var(--muted); }
+
+  /* ── Mitigation form ─────────────────────────────────── */
+  .action-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .action-card h3 {
+    font-size: .8rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  .form-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+
+  .form-field label {
+    font-family: var(--font-mono);
+    font-size: .62rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .form-field input, .form-field select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: .78rem;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color .15s;
+    min-width: 180px;
+  }
+
+  .form-field input:focus, .form-field select:focus { border-color: var(--accent); }
+
+  .action-btn {
+    font-family: var(--font-ui);
+    font-weight: 800;
+    font-size: .75rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 9px 20px;
+    border: none;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+    white-space: nowrap;
+  }
+
+  .action-btn:active { transform: scale(.97); }
+  .btn-danger  { background: var(--danger);  color: #fff; }
+  .btn-success { background: var(--accent);  color: var(--bg); }
+  .btn-info    { background: var(--accent2); color: var(--bg); }
+  .action-btn:hover { opacity: .85; }
+
+  .action-result {
+    margin-top: 14px;
+    font-family: var(--font-mono);
+    font-size: .72rem;
+    padding: 10px 14px;
+    border-left: 3px solid var(--accent);
+    background: #00ff9d08;
+    color: var(--accent);
+    display: none;
+  }
+
+  .action-result.error {
+    border-left-color: var(--danger);
+    background: #ff4d6d08;
+    color: var(--danger);
+  }
+
+  /* ── Baseline table ──────────────────────────────────── */
+  .mono-small { font-family: var(--font-mono); font-size: .68rem; color: var(--muted); }
+
+  /* ── Empty state ─────────────────────────────────────── */
+  .empty {
+    text-align: center;
+    padding: 48px 20px;
+    font-family: var(--font-mono);
+    font-size: .75rem;
+    color: var(--muted);
+  }
+
+  /* ── API config bar ──────────────────────────────────── */
+  .api-bar {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .api-bar label {
+    font-family: var(--font-mono);
+    font-size: .62rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .api-bar input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: .75rem;
+    padding: 6px 10px;
+    outline: none;
+    flex: 1;
+    min-width: 200px;
+    transition: border-color .15s;
+  }
+
+  .api-bar input:focus { border-color: var(--accent); }
+
+  .api-status {
+    font-family: var(--font-mono);
+    font-size: .65rem;
+    padding: 4px 10px;
+    border: 1px solid;
+    letter-spacing: .06em;
+  }
+
+  .api-status.ok   { color: var(--accent); border-color: var(--accent); }
+  .api-status.fail { color: var(--danger); border-color: var(--danger); }
+  .api-status.idle { color: var(--muted);  border-color: var(--border); }
+
+  /* ── Animations ──────────────────────────────────────── */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .3; }
+  }
+
+  @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Scrollbar ───────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ── Responsive ──────────────────────────────────────── */
+  @media (max-width: 1100px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon"><span></span></div>
+      <div class="login-logo-text">ZERO<span>CORE</span></div>
+    </div>
+    <div class="login-subtitle">Incident Response Agent — v3.0.0</div>
+
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="login-user" placeholder="owner" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+
+    <button class="login-btn" onclick="doLogin()">ACCESS DASHBOARD</button>
+    <div class="login-error" id="login-error">⚠ Invalid credentials</div>
+
+    <div class="login-open-source">
+      Open Source — Apache 2.0 &nbsp;·&nbsp;
+      <a href="https://github.com/yourorg/zerocore-agent" target="_blank">github.com/yourorg/zerocore-agent</a>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════════════════════ -->
+<div id="dashboard">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-box"><span></span></div>
+      <div class="sidebar-logo-name">ZERO<em>CORE</em></div>
+    </div>
+
+    <div class="sidebar-section">Monitor</div>
+    <div class="nav-item active" onclick="showPage('overview')">
+      <span class="icon">◈</span> Overview
+    </div>
+    <div class="nav-item" onclick="showPage('events')">
+      <span class="icon">⚡</span> Security Events
+    </div>
+    <div class="nav-item" onclick="showPage('baseline')">
+      <span class="icon">⊟</span> FIM Baseline
+    </div>
+
+    <div class="sidebar-section">Response</div>
+    <div class="nav-item" onclick="showPage('mitigation')">
+      <span class="icon">⛔</span> Mitigation
+    </div>
+    <div class="nav-item" onclick="showPage('actions')">
+      <span class="icon">📋</span> Action Log
+    </div>
+
+    <div class="sidebar-section">System</div>
+    <div class="nav-item" onclick="showPage('logs')">
+      <span class="icon">▸</span> Live Logs
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="agent-badge">
+        <div class="agent-dot"></div>
+        <div class="agent-info">
+          <div class="agent-name" id="sb-agent-id">zerocore-agent-01</div>
+          <div class="agent-env" id="sb-agent-env">production</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Overview</div>
+      <div class="topbar-pill live">● LIVE</div>
+      <div class="topbar-pill" id="topbar-uptime">Uptime: —</div>
+      <button class="logout-btn" onclick="doLogout()">LOGOUT</button>
+    </div>
+
+    <!-- API config bar (shown on all pages) -->
+    <div style="padding: 16px 28px 0;">
+      <div class="api-bar">
+        <label>API Host</label>
+        <input type="text" id="cfg-host" value="http://localhost:8000" placeholder="http://localhost:8000">
+        <label>API Key</label>
+        <input type="password" id="cfg-key" placeholder="X-ZeroCore-API-Key">
+        <button class="action-btn btn-info" onclick="testConnection()">TEST</button>
+        <span class="api-status idle" id="api-status-badge">IDLE</span>
+      </div>
+    </div>
+
+    <!-- ── PAGE: Overview ─────────────────────────────── -->
+    <div class="page active" id="page-overview">
+      <div style="padding: 0 0 0 0;">
+
+        <div class="stats-grid">
+          <div class="stat-card green">
+            <div class="stat-label">Agent Status</div>
+            <div class="stat-value" id="stat-status">—</div>
+            <div class="stat-sub" id="stat-env">environment: —</div>
+          </div>
+          <div class="stat-card blue">
+            <div class="stat-label">Events Processed</div>
+            <div class="stat-value" id="stat-events">—</div>
+            <div class="stat-sub">total security events</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-label">Actions Taken</div>
+            <div class="stat-value" id="stat-actions">—</div>
+            <div class="stat-sub">automated mitigations</div>
+          </div>
+          <div class="stat-card orange">
+            <div class="stat-label">FIM Monitor</div>
+            <div class="stat-value" id="stat-fim">—</div>
+            <div class="stat-sub" id="stat-fim-sub">file integrity engine</div>
+          </div>
+        </div>
+
+        <div class="section-header">
+          <div class="section-title">Recent Security Events</div>
+          <button class="refresh-btn" onclick="loadEvents()">↻ REFRESH</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Severity</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Description</th>
+                <th>Remediated</th>
+              </tr>
+            </thead>
+            <tbody id="overview-events-body">
+              <tr><td colspan="6" class="empty">Load data by pressing REFRESH or TEST CONNECTION above.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── PAGE: Security Events ──────────────────────── -->
+    <div class="page" id="page-events">
+      <div class="section-header">
+        <div class="section-title">All Security Events</div>
+        <button class="refresh-btn" onclick="loadEvents()">↻ REFRESH</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Event ID</th>
+              <th>Timestamp</th>
+              <th>Severity</th>
+              <th>Type</th>
+              <th>Source</th>
+              <th>Description</th>
+              <th>PID</th>
+              <th>Process</th>
+              <th>Remediated</th>
+            </tr>
+          </thead>
+          <tbody id="events-body">
+            <tr><td colspan="9" class="empty">No data loaded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── PAGE: FIM Baseline ─────────────────────────── -->
+    <div class="page" id="page-baseline">
+      <div class="section-header">
+        <div class="section-title">File Integrity Baseline</div>
+        <div style="display:flex;gap:8px;">
+          <button class="refresh-btn" onclick="loadBaseline()">↻ REFRESH</button>
+          <button class="action-btn btn-success" style="font-size:.65rem;padding:4px 14px;" onclick="triggerSnapshot()">SNAPSHOT NOW</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>File Path</th>
+              <th>SHA-256</th>
+              <th>Size</th>
+              <th>Permissions</th>
+              <th>Last Modified</th>
+              <th>Recorded At</th>
+            </tr>
+          </thead>
+          <tbody id="baseline-body">
+            <tr><td colspan="6" class="empty">No baseline data loaded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── PAGE: Mitigation ───────────────────────────── -->
+    <div class="page" id="page-mitigation">
+
+      <div class="action-card">
+        <h3>⛔ Block IP Address</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label>IP Address</label>
+            <input type="text" id="block-ip" placeholder="192.168.1.100">
+          </div>
+          <div class="form-field">
+            <label>Reason</label>
+            <input type="text" id="block-reason" placeholder="Suspicious activity detected">
+          </div>
+          <div class="form-field">
+            <label>Requested By</label>
+            <input type="text" id="block-by" placeholder="analyst1">
+          </div>
+          <button class="action-btn btn-danger" onclick="blockIP()">BLOCK IP</button>
+        </div>
+        <div class="action-result" id="block-result"></div>
+      </div>
+
+      <div class="action-card">
+        <h3>✅ Unblock IP Address</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label>IP Address</label>
+            <input type="text" id="unblock-ip" placeholder="192.168.1.100">
+          </div>
+          <div class="form-field">
+            <label>Requested By</label>
+            <input type="text" id="unblock-by" placeholder="analyst1">
+          </div>
+          <button class="action-btn btn-success" onclick="unblockIP()">UNBLOCK IP</button>
+        </div>
+        <div class="action-result" id="unblock-result"></div>
+      </div>
+
+    </div>
+
+    <!-- ── PAGE: Action Log ───────────────────────────── -->
+    <div class="page" id="page-actions">
+      <div class="section-header">
+        <div class="section-title">Mitigation Action Log</div>
+        <button class="refresh-btn" onclick="loadActions()">↻ REFRESH</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Action ID</th>
+              <th>Timestamp</th>
+              <th>Type</th>
+              <th>Target</th>
+              <th>Status</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="actions-body">
+            <tr><td colspan="6" class="empty">No actions logged.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── PAGE: Live Logs ────────────────────────────── -->
+    <div class="page" id="page-logs">
+      <div class="section-header">
+        <div class="section-title">Simulated Agent Log Stream</div>
+        <button class="refresh-btn" onclick="clearLogs()">✕ CLEAR</button>
+      </div>
+      <div class="terminal" id="terminal"></div>
+    </div>
+
+  </div><!-- /.main -->
+</div><!-- /#dashboard -->
+
+<script>
+/* ══════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════ */
+const VALID_USER = 'owner';
+const VALID_PASS = '909090';
+let loggedIn = false;
+let logInterval = null;
+
+/* ══════════════════════════════════════════════════════
+   LOGIN
+══════════════════════════════════════════════════════ */
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
+
+  if (u === VALID_USER && p === VALID_PASS) {
+    err.style.display = 'none';
+    loggedIn = true;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    startLogStream();
+    testConnection();
+  } else {
+    err.style.display = 'block';
+    document.getElementById('login-pass').value = '';
+  }
+}
+
+function doLogout() {
+  loggedIn = false;
+  clearInterval(logInterval);
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+}
+
+// Allow Enter key on login
+document.addEventListener('DOMContentLoaded', () => {
+  ['login-user','login-pass'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+  });
+});
+
+/* ══════════════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════════════ */
+const PAGE_TITLES = {
+  overview:   'Overview',
+  events:     'Security Events',
+  baseline:   'FIM Baseline',
+  mitigation: 'Mitigation',
+  actions:    'Action Log',
+  logs:       'Live Logs',
+};
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector(`.nav-item[onclick="showPage('${name}')"]`).classList.add('active');
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[name] || name;
+}
+
+/* ══════════════════════════════════════════════════════
+   API HELPERS
+══════════════════════════════════════════════════════ */
+function getHost() { return document.getElementById('cfg-host').value.replace(/\/$/, ''); }
+function getKey()  { return document.getElementById('cfg-key').value.trim(); }
+
+async function apiFetch(path, opts = {}) {
+  const key = getKey();
+  const headers = { 'Content-Type': 'application/json' };
+  if (key) headers['X-ZeroCore-API-Key'] = key;
+  const res = await fetch(getHost() + path, { ...opts, headers: { ...headers, ...(opts.headers||{}) } });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+async function testConnection() {
+  const badge = document.getElementById('api-status-badge');
+  badge.textContent = 'TESTING…';
+  badge.className = 'api-status idle';
+  try {
+    const data = await apiFetch('/api/v1/health');
+    badge.textContent = 'CONNECTED';
+    badge.className = 'api-status ok';
+    renderOverviewStats(data);
+    loadEvents();
+    loadActions();
+    loadBaseline();
+    addLog('INFO', 'api.connected', `agent=${data.agent_id} env=${data.environment}`);
+  } catch (e) {
+    badge.textContent = 'FAILED';
+    badge.className = 'api-status fail';
+    addLog('ERROR', 'api.connection_failed', e.message);
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   OVERVIEW
+══════════════════════════════════════════════════════ */
+function renderOverviewStats(d) {
+  document.getElementById('stat-status').textContent  = d.status || '—';
+  document.getElementById('stat-env').textContent     = 'environment: ' + (d.environment || '—');
+  document.getElementById('stat-events').textContent  = d.events_processed ?? '—';
+  document.getElementById('stat-actions').textContent = d.actions_taken ?? '—';
+  document.getElementById('stat-fim').textContent     = d.fim_active ? 'ACTIVE' : 'OFF';
+  document.getElementById('stat-fim-sub').textContent = d.fim_active ? 'monitoring active' : 'not running';
+  document.getElementById('sb-agent-id').textContent  = d.agent_id || '—';
+  document.getElementById('sb-agent-env').textContent = d.environment || '—';
+
+  const uptime = d.uptime_seconds != null
+    ? formatUptime(d.uptime_seconds)
+    : '—';
+  document.getElementById('topbar-uptime').textContent = 'Uptime: ' + uptime;
+}
+
+function formatUptime(s) {
+  if (s < 60)   return s.toFixed(0) + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60).toFixed(0) + 's';
+  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+
+/* ══════════════════════════════════════════════════════
+   SECURITY EVENTS
+══════════════════════════════════════════════════════ */
+async function loadEvents() {
+  try {
+    const data = await apiFetch('/api/v1/events?page=1&page_size=50');
+    renderEventsTable(data.items || [], 'events-body', true);
+    renderEventsTable((data.items || []).slice(0, 10), 'overview-events-body', false);
+    addLog('INFO', 'events.loaded', `total=${data.total}`);
+  } catch (e) {
+    addLog('ERROR', 'events.load_failed', e.message);
+  }
+}
+
+function renderEventsTable(items, tbodyId, extended) {
+  const tbody = document.getElementById(tbodyId);
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="${extended?9:6}" class="empty">No events found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map(ev => {
+    const pa = ev.metadata?.process_attribution;
+    const pid     = pa?.pid     ?? '—';
+    const process = pa?.process_name ?? '—';
+    const desc = ev.description.length > 80
+      ? ev.description.slice(0,80) + '…'
+      : ev.description;
+    const ts = new Date(ev.timestamp).toLocaleString();
+    const remBadge = ev.remediated
+      ? '<span class="badge badge-success">YES</span>'
+      : '<span class="badge badge-failed">NO</span>';
+
+    const baseCols = `
+      <td>${ts}</td>
+      <td>${severityBadge(ev.severity)}</td>
+      <td><span style="font-family:var(--font-mono);font-size:.68rem;color:var(--accent2)">${ev.event_type}</span></td>
+      <td style="color:var(--muted)">${ev.source}</td>
+      <td title="${escHtml(ev.description)}">${escHtml(desc)}</td>
+      <td>${remBadge}</td>`;
+
+    if (extended) {
+      return `<tr>
+        <td class="mono-small">${ev.event_id.slice(0,8)}…</td>
+        ${baseCols}
+        <td class="mono-small">${pid}</td>
+        <td class="mono-small">${escHtml(String(process))}</td>
+      </tr>`;
+    }
+    return `<tr>${baseCols}</tr>`;
+  }).join('');
+}
+
+function severityBadge(s) {
+  const map = { CRITICAL:'critical', HIGH:'high', MEDIUM:'medium', LOW:'low' };
+  return `<span class="badge badge-${map[s]||'low'}">${s}</span>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   BASELINE
+══════════════════════════════════════════════════════ */
+async function loadBaseline() {
+  try {
+    const data = await apiFetch('/api/v1/baseline');
+    renderBaseline(data.items || []);
+    addLog('INFO', 'baseline.loaded', `files=${data.total}`);
+  } catch (e) {
+    addLog('ERROR', 'baseline.load_failed', e.message);
+  }
+}
+
+function renderBaseline(items) {
+  const tbody = document.getElementById('baseline-body');
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No baseline entries. Run a snapshot first.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(b => `
+    <tr>
+      <td style="font-family:var(--font-mono);font-size:.72rem">${escHtml(b.path)}</td>
+      <td class="mono-small">${b.sha256.slice(0,16)}…</td>
+      <td class="mono-small">${formatBytes(b.size_bytes)}</td>
+      <td class="mono-small">${b.permissions}</td>
+      <td class="mono-small">${new Date(b.last_modified).toLocaleString()}</td>
+      <td class="mono-small">${new Date(b.recorded_at).toLocaleString()}</td>
+    </tr>`).join('');
+}
+
+async function triggerSnapshot() {
+  try {
+    const data = await apiFetch('/api/v1/baseline/snapshot', { method: 'POST' });
+    addLog('INFO', 'baseline.snapshot_complete', `files=${data.files_recorded}`);
+    setTimeout(loadBaseline, 500);
+  } catch (e) {
+    addLog('ERROR', 'baseline.snapshot_failed', e.message);
+  }
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(2) + ' MB';
+}
+
+/* ══════════════════════════════════════════════════════
+   MITIGATION
+══════════════════════════════════════════════════════ */
+async function blockIP() {
+  const ip     = document.getElementById('block-ip').value.trim();
+  const reason = document.getElementById('block-reason').value.trim();
+  const by     = document.getElementById('block-by').value.trim();
+  const res    = document.getElementById('block-result');
+
+  if (!ip || !reason || !by) {
+    showResult(res, '⚠ All fields are required.', true); return;
+  }
+
+  try {
+    const data = await apiFetch('/api/v1/mitigation/block', {
+      method: 'POST',
+      body: JSON.stringify({ ip_address: ip, reason, requested_by: by }),
+    });
+    showResult(res, `✓ IP ${ip} blocked. Action ID: ${data.action_id}`, false);
+    addLog('WARNING', 'mitigation.manual_block', `ip=${ip} by=${by}`);
+    loadActions();
+  } catch (e) {
+    showResult(res, `✕ Failed: ${e.message}`, true);
+    addLog('ERROR', 'mitigation.block_failed', e.message);
+  }
+}
+
+async function unblockIP() {
+  const ip  = document.getElementById('unblock-ip').value.trim();
+  const by  = document.getElementById('unblock-by').value.trim();
+  const res = document.getElementById('unblock-result');
+
+  if (!ip || !by) {
+    showResult(res, '⚠ IP and operator fields are required.', true); return;
+  }
+
+  try {
+    const data = await apiFetch('/api/v1/mitigation/unblock', {
+      method: 'POST',
+      body: JSON.stringify({ ip_address: ip, requested_by: by }),
+    });
+    showResult(res, `✓ IP ${ip} unblocked. Action ID: ${data.action_id}`, false);
+    addLog('INFO', 'mitigation.manual_unblock', `ip=${ip} by=${by}`);
+    loadActions();
+  } catch (e) {
+    showResult(res, `✕ Failed: ${e.message}`, true);
+    addLog('ERROR', 'mitigation.unblock_failed', e.message);
+  }
+}
+
+function showResult(el, msg, isError) {
+  el.textContent = msg;
+  el.className   = 'action-result' + (isError ? ' error' : '');
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+/* ══════════════════════════════════════════════════════
+   ACTIONS LOG
+══════════════════════════════════════════════════════ */
+async function loadActions() {
+  try {
+    const data = await apiFetch('/api/v1/actions?page=1&page_size=50');
+    renderActionsTable(data.items || []);
+  } catch (e) {
+    addLog('ERROR', 'actions.load_failed', e.message);
+  }
+}
+
+function renderActionsTable(items) {
+  const tbody = document.getElementById('actions-body');
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No actions recorded.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(a => {
+    const statusClass = a.status === 'SUCCESS' ? 'badge-success' : 'badge-failed';
+    return `<tr>
+      <td class="mono-small">${a.action_id.slice(0,8)}…</td>
+      <td class="mono-small">${new Date(a.timestamp).toLocaleString()}</td>
+      <td><span style="font-family:var(--font-mono);font-size:.68rem;color:var(--warn)">${a.action_type}</span></td>
+      <td style="font-family:var(--font-mono);font-size:.75rem">${escHtml(a.target)}</td>
+      <td><span class="badge ${statusClass}">${a.status}</span></td>
+      <td class="mono-small">${escHtml(a.details || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   LIVE LOG STREAM (simulated)
+══════════════════════════════════════════════════════ */
+const LOG_POOL = [
+  ['INFO',    'fim.watching',          'path=/etc/passwd recursive=false'],
+  ['INFO',    'fim.watching',          'path=/bin recursive=true'],
+  ['INFO',    'agent.baseline_complete','files=247'],
+  ['INFO',    'eventbus.publish',      'event_type=FIM severity=MEDIUM'],
+  ['INFO',    'database.connected',    'path=data/zerocore.db'],
+  ['WARNING', 'fim.event',             'path=/etc/sudoers action=MODIFIED severity=HIGH pid=4122 process=python3'],
+  ['WARNING', 'mitigation.action_taken','action_type=BLOCK_IP target=10.0.0.42 status=SUCCESS'],
+  ['INFO',    'process_monitor.cached','path=/etc/passwd pid=3891 process=bash uid=0'],
+  ['INFO',    'http.request',          'method=GET path=/api/v1/health status=200 latency_ms=1.2'],
+  ['INFO',    'fim.baseline_snapshot', 'files_recorded=312'],
+  ['ERROR',   'firewall.block_failed', 'ip=256.256.256.256 error=invalid address'],
+  ['INFO',    'eventbus.publish',      'event_type=FIM severity=CRITICAL source=FileIntegrityMonitor'],
+  ['WARNING', 'fim.event',             'path=/usr/bin/python3 action=MODIFIED severity=CRITICAL'],
+  ['INFO',    'process_monitor.purged_expired','count=3'],
+  ['INFO',    'http.request',          'method=POST path=/api/v1/mitigation/block status=201 latency_ms=8.4'],
+];
+
+function addLog(level, event, meta) {
+  const terminal = document.getElementById('terminal');
+  if (!terminal) return;
+  const now  = new Date().toISOString().slice(11,23);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML =
+    `<span class="log-time">${now}</span>` +
+    `<span class="log-level-${level.toLowerCase()}">[${level.padEnd(8)}]</span>` +
+    `<span class="log-msg">${escHtml(event)}</span>` +
+    `<span class="log-meta">${escHtml(meta)}</span>`;
+  terminal.appendChild(line);
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function startLogStream() {
+  const terminal = document.getElementById('terminal');
+  terminal.innerHTML = '';
+  addLog('INFO', 'agent.starting', 'agent_id=zerocore-agent-01 environment=production');
+  let i = 0;
+  logInterval = setInterval(() => {
+    const entry = LOG_POOL[i % LOG_POOL.length];
+    addLog(entry[0], entry[1], entry[2]);
+    i++;
+  }, 2200);
+}
+
+function clearLogs() {
+  document.getElementById('terminal').innerHTML = '';
+}
+
+/* ══════════════════════════════════════════════════════
+   UTILS
+══════════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

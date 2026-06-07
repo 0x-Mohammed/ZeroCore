@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  zerocore-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: final
+    container_name: zerocore-agent
+    restart: unless-stopped
+
+    # CAP_NET_ADMIN: required for iptables rule management (no sudo)
+    cap_add:
+      - NET_ADMIN
+
+    environment:
+      ZEROCORE_AGENT_ID: ${ZEROCORE_AGENT_ID:-zerocore-agent-01}
+      ZEROCORE_ENVIRONMENT: ${ZEROCORE_ENVIRONMENT:-production}
+      ZEROCORE_LOG_LEVEL: ${ZEROCORE_LOG_LEVEL:-INFO}
+      ZEROCORE_SECRET_KEY: ${ZEROCORE_SECRET_KEY:?ZEROCORE_SECRET_KEY is required}
+      ZEROCORE_API_KEY: ${ZEROCORE_API_KEY:?ZEROCORE_API_KEY is required}
+      ZEROCORE_HOST: "0.0.0.0"
+      ZEROCORE_PORT: "8000"
+      ZEROCORE_DB_PATH: "/app/data/zerocore.db"
+      ZEROCORE_WATCH_PATHS: ${ZEROCORE_WATCH_PATHS:-/monitored}
+      ZEROCORE_AUTO_BLOCK: ${ZEROCORE_AUTO_BLOCK:-true}
+      ZEROCORE_BLOCK_COOLDOWN_SECONDS: ${ZEROCORE_BLOCK_COOLDOWN_SECONDS:-60}
+      ZEROCORE_MAX_BLOCKS_PER_MINUTE: ${ZEROCORE_MAX_BLOCKS_PER_MINUTE:-10}
+
+    ports:
+      - "${ZEROCORE_PORT:-8000}:8000"
+
+    volumes:
+      # Persistent SQLite database
+      - zerocore_data:/app/data
+      # Mount paths to monitor (read-only)
+      - /etc:/monitored/etc:ro
+      - /bin:/monitored/bin:ro
+
+    networks:
+      - zerocore_net
+
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  zerocore_data:
+    driver: local
+
+networks:
+  zerocore_net:
+    driver: bridge
