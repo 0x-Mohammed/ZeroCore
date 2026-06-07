@@ -1,205 +1,92 @@
-# ZeroCore Agent
+<div align="center">
 
-> **Automated Incident Response Agent** — File integrity monitoring, active IP blocking, and structured event telemetry with a REST API for SOC integration.
+# ZeroCore
+### Kernel-Level EDR Agent · File Integrity Monitor · Automated Threat Response
 
-[![CI](https://github.com/yourorg/zerocore-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yourorg/zerocore-agent/actions)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
+[
 
----
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 
-## What It Does
+](https://python.org)
+[
 
-ZeroCore Agent is a lightweight, host-deployed security daemon that:
+![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go&logoColor=white)
 
-- **Monitors** critical filesystem paths (FIM) using inotify-based watchdog with SHA-256 baseline comparison
-- **Detects** unauthorized modifications, creations, and deletions with severity classification based on path type
-- **Responds** automatically by injecting iptables DROP rules for high/critical-severity source IPs — with per-IP cooldown and global rate limiting to prevent self-DoS
-- **Persists** all events and mitigation actions to SQLite (WAL mode, indexed)
-- **Exposes** a structured REST API for SOC dashboards, SIEM forwarding, and operator tooling
-- **Emits** JSON-structured logs compatible with Splunk, Elastic, and Loki
+](https://golang.org)
+[
 
----
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-## Architecture
+](LICENSE)
+[
 
-```
-┌─────────────────────────────────────────────────────┐
-│                  ZeroCore Agent                     │
-│                                                     │
-│  ┌──────────────┐    ┌───────────────────────────┐  │
-│  │     FIM      │───▶│       Event Bus           │  │
-│  │  (watchdog   │    │  (async pub/sub)          │  │
-│  │  + SHA-256)  │    └──────────┬────────────────┘  │
-│  └──────────────┘               │                   │
-│                          ┌──────▼──────┐            │
-│                          │  Active     │            │
-│                          │  Response   │            │
-│                          │  Engine     │            │
-│                          │  (rate      │            │
-│                          │  limited)   │            │
-│                          └──────┬──────┘            │
-│                                 │                   │
-│  ┌──────────────┐    ┌──────────▼──────┐            │
-│  │  FastAPI     │    │  Linux Firewall │            │
-│  │  REST API    │    │  Manager        │            │
-│  │  (auth +     │    │  (CAP_NET_ADMIN │            │
-│  │   paginated) │    │   no sudo)      │            │
-│  └──────┬───────┘    └─────────────────┘            │
-│         │                                           │
-│  ┌──────▼───────────────────────────────────────┐   │
-│  │         SQLite (WAL, async, indexed)         │   │
-│  └──────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
-```
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue?style=flat-square)
 
-**Key design decisions:**
-- FIM → EventBus → Response Engine are fully decoupled via async pub/sub
-- No sudo anywhere — iptables access via `CAP_NET_ADMIN` process capability
-- No in-memory storage — all events/actions persisted to SQLite with WAL
-- Secrets loaded exclusively from environment variables — never from YAML or code
-- Docs endpoints disabled in production (`ZEROCORE_ENVIRONMENT=production`)
+](https://github.com/0x-Mohammed/ZeroCore)
+
+Open-source EDR agent with eBPF kernel probes, real-time process attribution, and automated IP mitigation.
+
+</div>
 
 ---
 
-## Severity Classification
+## What is ZeroCore?
 
-| Path Pattern | Severity |
-|---|---|
-| `/boot/`, `/bin/`, `/sbin/`, `/usr/bin/`, `/lib/` | CRITICAL |
-| `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, `/etc/ssh/` | HIGH |
-| `/etc/` (generic) | MEDIUM |
-| All other watched paths | LOW |
+ZeroCore monitors your system at the kernel level. When a file is modified, it tells you exactly who did it:
 
-SHA-256 hash mismatch on a MEDIUM path **promotes** it to HIGH automatically.
+
+
+
+[WARNING] fim.event  path=/etc/passwd  action=MODIFIED  severity=HIGH
+pid=4122   process=python3   parent=bash
+user=root  uid=0  command=python3 exploit.py
+
+
+---
+
+## Features
+
+- File Integrity Monitor — Sub-1-second detection with SHA-256 baseline
+- Process Attribution — Exact PID, process, parent, user, and command
+- eBPF Kernel Probe — Hooks into kernel syscalls on Linux
+- ETW + Sysmon — Windows support via Event Tracing
+- Auto IP Block — Automated firewall response with rate limiting
+- REST API — Full API with authentication
+- Web Dashboard — Single-file dashboard, no server required
+- SIEM Ready — JSON logs for Splunk, Elastic, Loki
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.12+
-- Linux host (iptables required for auto-blocking)
-- `CAP_NET_ADMIN` capability for iptables (or Docker `NET_ADMIN`)
-
-### 1. Clone & Configure
-
-```bash
-git clone https://github.com/yourorg/zerocore-agent.git
-cd zerocore-agent
-
-cp .env.example .env
-# Edit .env — set ZEROCORE_SECRET_KEY and ZEROCORE_API_KEY
-```
-
-### 2. Install
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
+`bash
+git clone https://github.com/0x-Mohammed/ZeroCore.git
+cd ZeroCore
 pip install -r requirements.txt
-```
+export ZEROCORE_API_KEY="your-secret-key"
+python main.py
 
-### 3. Run
+docker-compose up -d
 
-```bash
-python -m src.main
-```
-
-### 4. Test the API
-
-```bash
-# Health check (no auth)
-curl http://localhost:8000/health
-
-# Authenticated status
-curl -H "X-ZeroCore-API-Key: your_api_key" http://localhost:8000/api/v1/health
-
-# List events
-curl -H "X-ZeroCore-API-Key: your_api_key" \
-     "http://localhost:8000/api/v1/events?page=1&page_size=20"
-
-# Manual IP block
-curl -X POST http://localhost:8000/api/v1/mitigation/block \
-     -H "X-ZeroCore-API-Key: your_api_key" \
-     -H "Content-Type: application/json" \
-     -d '{"ip_address":"10.0.0.1","reason":"Suspicious scan","requested_by":"analyst1"}'
-```
-
----
-
-## Docker
-
-```bash
-# Build and run
-docker compose up -d
-
-# View structured logs
-docker compose logs -f zerocore-agent
-```
-
-The compose file mounts `/etc` and `/bin` read-only into the container for monitoring. `CAP_NET_ADMIN` is added for iptables access.
-
----
-
-## API Reference
-
-All endpoints under `/api/v1/` require `X-ZeroCore-API-Key` header.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Public health probe (no auth) |
-| GET | `/api/v1/health` | Agent status, uptime, counters |
-| GET | `/api/v1/events` | Paginated security events (filter by severity/type) |
-| GET | `/api/v1/actions` | Paginated mitigation actions |
-| POST | `/api/v1/mitigation/block` | Manually block an IP |
-| POST | `/api/v1/mitigation/unblock` | Manually unblock an IP |
-| GET | `/api/v1/baseline` | List all FIM baseline entries |
-| POST | `/api/v1/baseline/snapshot` | Trigger a fresh baseline snapshot |
-
-Interactive docs available at `/docs` in development mode.
-
----
-
-## Testing
-
-```bash
-pytest
-```
-
-Coverage target: 70% minimum (enforced in CI).
-
----
-
-## Configuration Reference
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `ZEROCORE_SECRET_KEY` | ✅ | — | JWT signing secret (min 32 chars) |
-| `ZEROCORE_API_KEY` | ✅ | — | API authentication key (min 16 chars) |
-| `ZEROCORE_ENVIRONMENT` | | `production` | `development`, `staging`, `production` |
-| `ZEROCORE_WATCH_PATHS` | | `/etc/passwd,...` | Comma-separated paths to monitor |
-| `ZEROCORE_AUTO_BLOCK` | | `true` | Enable automated IP blocking |
-| `ZEROCORE_BLOCK_COOLDOWN_SECONDS` | | `60` | Per-IP cooldown between blocks |
-| `ZEROCORE_MAX_BLOCKS_PER_MINUTE` | | `10` | Global auto-block rate cap |
-| `ZEROCORE_DB_PATH` | | `data/zerocore.db` | SQLite database path |
-
-See `.env.example` for the full list.
-
----
-
-## Roadmap
-
-- [ ] eBPF probe integration (libbpf) for syscall-level visibility
-- [ ] Sigma rule engine for pattern-based detection
-- [ ] gRPC transport for agent-to-server communication
-- [ ] Prometheus metrics endpoint (`/metrics`)
-- [ ] Kubernetes DaemonSet deployment manifests
-- [ ] Grafana dashboard
-
----
-
-## License
-
-Apache License 2.0 — see [LICENSE](LICENSE).
+API
+All endpoints require X-ZeroCore-API-Key header.
+Method
+Endpoint
+Description
+GET
+/api/v1/events
+Security events
+GET
+/api/v1/baseline
+FIM baseline
+POST
+/api/v1/mitigation/block
+Block IP
+POST
+/api/v1/mitigation/unblock
+Unblock IP
+GET
+/api/v1/health
+Health check
+License
+MIT — Built by 0x-Mohammed · Iraq 🇮🇶
